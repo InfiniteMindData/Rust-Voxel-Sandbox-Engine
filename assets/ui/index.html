@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blockscape</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #0b0e14; overflow: hidden;
+               font-family: "Segoe UI", system-ui, sans-serif; }
+  #view {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; image-rendering: pixelated; background: #0b0e14;
+    cursor: crosshair;
+  }
+  #stats {
+    position: absolute; top: 10px; left: 10px; padding: 8px 12px;
+    background: rgba(8, 10, 16, 0.72); border: 1px solid rgba(120, 200, 255, 0.25);
+    border-radius: 6px; color: #cfe8ff; font: 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    white-space: pre; pointer-events: none; z-index: 3;
+  }
+  #stats.hidden { display: none; }
+  #brand {
+    position: absolute; top: 12px; right: 14px; z-index: 3; text-align: right;
+    color: #8fb7d9; font: 600 13px/1.4 system-ui, sans-serif; letter-spacing: 2px;
+    text-shadow: 0 1px 3px rgba(0,0,0,.8); pointer-events: none;
+  }
+  #brand small { display: block; font-weight: 400; letter-spacing: .5px; color: #6f8ba3; }
+  #hint {
+    position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%);
+    background: rgba(8, 10, 16, 0.8); border: 1px solid rgba(255, 200, 120, 0.4);
+    color: #ffd9a0; padding: 10px 18px; border-radius: 8px;
+    font: 14px system-ui, sans-serif; z-index: 4; text-align: center;
+    transition: opacity .4s;
+  }
+  #hint b { color: #fff; }
+  #hint.gone { opacity: 0; pointer-events: none; }
+  #help {
+    position: absolute; left: 10px; bottom: 10px; color: #93a7bb;
+    background: rgba(8, 10, 16, 0.6); padding: 6px 10px; border-radius: 6px;
+    font: 11px/1.5 ui-monospace, monospace; z-index: 3; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<img id="view" src="/stream" alt="Blockscape render stream" draggable="false">
+<div id="stats"></div>
+<div id="brand">BLOCKSCAPE<small>voxel sandbox engine</small></div>
+<div id="hint"><b>Click</b> to capture the mouse &middot; <b>F3</b> toggles debug info</div>
+<div id="help">WASD move &middot; Space/Ctrl up/down &middot; Shift sprint &middot; drag or click-capture to look &middot; 1&ndash;9 hotbar</div>
+<script>
+(function () {
+  "use strict";
+  var view = document.getElementById("view");
+  var statsEl = document.getElementById("stats");
+  var hint = document.getElementById("hint");
+  var statsVisible = true;
+
+  // ---- input batching --------------------------------------------------
+  var keyEvents = [];      // "Code:1" / "Code:0"
+  var buttonEvents = [];   // "0:1" / "2:0"
+  var dx = 0, dy = 0;
+  var pointerCaptured = false;
+  var dragging = false;
+
+  function flush() {
+    var parts = [];
+    if (keyEvents.length) parts.push("ke=" + keyEvents.join(","));
+    if (buttonEvents.length) parts.push("mb=" + buttonEvents.join(","));
+    if (dx !== 0 || dy !== 0) {
+      parts.push("mdx=" + dx.toFixed(2));
+      parts.push("mdy=" + dy.toFixed(2));
+      dx = 0; dy = 0;
+    }
+    keyEvents.length = 0; buttonEvents.length = 0;
+    if (parts.length) {
+      var body = parts.join("&");
+      if (navigator.sendBeacon) {
+        // sendBeacon is fire-and-forget and avoids request queueing.
+        navigator.sendBeacon("/input", new Blob([body], { type: "application/x-www-form-urlencoded" }));
+      } else {
+        fetch("/input", { method: "POST", body: body, keepalive: true,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" } }).catch(function () {});
+      }
+    }
+  }
+  setInterval(flush, 30);
+  window.addEventListener("beforeunload", flush);
+
+  // ---- keyboard ----------------------------------------------------------
+  var GAME_KEYS = { "KeyW":1, "KeyA":1, "KeyS":1, "KeyD":1, "Space":1,
+                    "ShiftLeft":1, "ShiftRight":1, "ControlLeft":1,
+                    "F3":1, "Escape":1, "Tab":1 };
+  window.addEventListener("keydown", function (e) {
+    if (GAME_KEYS[e.code]) e.preventDefault();
+    if (e.code === "F3") { statsVisible = !statsVisible; statsEl.classList.toggle("hidden", !statsVisible); return; }
+    if (e.repeat) return;
+    keyEvents.push(e.code + ":1");
+  });
+  window.addEventListener("keyup", function (e) {
+    if (GAME_KEYS[e.code]) e.preventDefault();
+    keyEvents.push(e.code + ":0");
+  });
+  window.addEventListener("blur", function () {
+    // Never leave keys stuck when the tab loses focus.
+    ["KeyW","KeyA","KeyS","KeyD","Space","ShiftLeft","ShiftRight","ControlLeft"].forEach(function (c) {
+      keyEvents.push(c + ":0");
+    });
+    dragging = false;
+  });
+
+  // ---- mouse look --------------------------------------------------------
+  function tryCapture() {
+    if (!pointerCaptured && view.requestPointerLock) {
+      try { view.requestPointerLock(); } catch (err) { /* iframe policy: fall back to drag-look */ }
+    }
+  }
+  view.addEventListener("click", function () {
+    hint.classList.add("gone");
+    tryCapture();
+  });
+  document.addEventListener("pointerlockchange", function () {
+    pointerCaptured = (document.pointerLockElement === view);
+  });
+  window.addEventListener("mousemove", function (e) {
+    if (pointerCaptured) {
+      dx += e.movementX || 0; dy += e.movementY || 0;
+    } else if (dragging) {
+      dx += e.movementX || 0; dy += e.movementY || 0;
+    }
+  });
+  view.addEventListener("mousedown", function (e) {
+    if (e.button === 0) { if (!pointerCaptured) dragging = true; buttonEvents.push("0:1"); }
+    if (e.button === 2) buttonEvents.push("2:1");
+    e.preventDefault();
+  });
+  window.addEventListener("mouseup", function (e) {
+    if (e.button === 0) { dragging = false; buttonEvents.push("0:0"); }
+    if (e.button === 2) buttonEvents.push("2:0");
+  });
+  window.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+  // ---- stats HUD ----------------------------------------------------------
+  setInterval(function () {
+    fetch("/stats").then(function (r) { return r.text(); }).then(function (t) {
+      statsEl.textContent = t;
+    }).catch(function () {});
+  }, 400);
+})();
+</script>
+</body>
+</html>
