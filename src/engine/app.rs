@@ -139,6 +139,7 @@ impl App {
         let sim_step = self.timestep.step();
         let render_interval = Duration::from_secs_f64(1.0 / self.config.target_render_fps as f64);
         let mut last_frame = Instant::now();
+        let mut last_render_start: Option<Instant> = None;
         let mut next_render_at = last_frame + render_interval;
 
         loop {
@@ -152,9 +153,13 @@ impl App {
             }
 
             if now >= next_render_at {
-                let frame_start = Instant::now();
+                // FPS measures the true wall-clock cadence between frame
+                // starts, not how long a render call takes.
+                if let Some(prev) = last_render_start {
+                    self.fps.record(now - prev);
+                }
+                last_render_start = Some(now);
                 self.render_and_publish();
-                self.fps.record(frame_start.elapsed());
                 // Schedule the next frame; if we are behind, render next time
                 // immediately instead of stacking up.
                 next_render_at = (next_render_at + render_interval).max(Instant::now());
