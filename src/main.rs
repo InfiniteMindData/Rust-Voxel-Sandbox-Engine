@@ -5,6 +5,7 @@
 
 mod engine;
 mod render;
+mod voxel;
 
 use engine::app::{App, AppConfig};
 use engine::logging::Level;

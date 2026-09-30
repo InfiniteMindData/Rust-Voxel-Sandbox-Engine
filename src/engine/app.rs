@@ -72,6 +72,15 @@ impl App {
         })?;
         log_info!(LOG_TARGET, "display server listening on {}", display.addr());
 
+        // The voxel layer is wired up here for the data-model milestones;
+        // rendering of voxels arrives with the meshing milestone.
+        let registry = crate::voxel::registry::BlockRegistry::with_builtins();
+        log_info!(
+            LOG_TARGET,
+            "block registry initialized with {} blocks",
+            registry.len()
+        );
+
         let mut renderer = SoftwareRenderer::new(config.width, config.height);
 
         // Milestone 1 test scene: a single textured, slowly rotating cube.
