@@ -44,7 +44,7 @@
 </style>
 </head>
 <body>
-<img id="view" src="/stream" alt="Blockscape render stream" draggable="false">
+<img id="view" alt="Blockscape render stream" draggable="false">
 <div id="stats"></div>
 <div id="brand">BLOCKSCAPE<small>voxel sandbox engine</small></div>
 <div id="hint"><b>Click</b> to capture the mouse &middot; <b>F3</b> toggles debug info</div>
@@ -53,6 +53,31 @@
 (function () {
   "use strict";
   var view = document.getElementById("view");
+
+  // ---- frame pump --------------------------------------------------------
+  // Polls /frame.png (a plain request/response, like the stats HUD) and swaps
+  // the decoded blob in. Multipart streaming (/stream) exists too but is not
+  // reliable inside iframes and some browser engines, so polling is default.
+  var currentFrameUrl = null;
+  function pump() {
+    fetch("/frame.png", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.blob() : Promise.reject(r.status); })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        view.onload = function () {
+          if (currentFrameUrl && currentFrameUrl !== url) URL.revokeObjectURL(currentFrameUrl);
+          currentFrameUrl = url;
+          setTimeout(pump, 0); // immediately ask for the next frame
+        };
+        view.onerror = function () {
+          URL.revokeObjectURL(url);
+          setTimeout(pump, 150);
+        };
+        view.src = url;
+      })
+      .catch(function () { setTimeout(pump, 250); });
+  }
+  pump();
   var statsEl = document.getElementById("stats");
   var hint = document.getElementById("hint");
   var statsVisible = true;

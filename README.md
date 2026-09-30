@@ -18,8 +18,9 @@ look, sprint). 39 unit tests pass; the build is warning-free.
 
 The primary development environment is a headless Linux sandbox (no display
 server, no GPU), so the engine ships with a zero-dependency display backend:
-frames are encoded to PNG by a hand-written DEFLATE/PNG encoder and streamed
-to a browser over HTTP, which also feeds keyboard/mouse input back. The game
+frames are encoded to PNG by a hand-written DEFLATE/PNG encoder and pushed
+to a browser over HTTP (the page polls `/frame.png`; a multipart stream also
+exists at `/stream`), which also feeds keyboard/mouse input back. The game
 logic targets a small [`Renderer`] trait and an [`InputState`] abstraction, so
 a native `winit` + `wgpu` window backend can be added behind the same seams
 without touching gameplay code (this is the plan once `crates.io` is

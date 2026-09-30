@@ -113,8 +113,8 @@ steps are independent of frame rate.
 | Route           | Purpose                                        |
 | --------------- | ---------------------------------------------- |
 | `GET /`         | the UI page (`assets/ui/index.html`)           |
-| `GET /stream`   | `multipart/x-mixed-replace` PNG frame stream   |
-| `GET /frame.png`| single latest frame (screenshots, debugging)   |
+| `GET /frame.png`| single latest frame; the UI polls this as the frame transport (works through iframes/proxies that break multipart streams) |
+| `GET /stream`   | `multipart/x-mixed-replace` PNG stream (alternative transport, `X-Accel-Buffering: no`) |
 | `GET /stats`    | HUD text (fps, frame time, pos, counters)      |
 | `POST /input`   | form-encoded events: `ke=Code:1,…`, `mb=0:1,…`, `mdx=`, `mdy=` |
 

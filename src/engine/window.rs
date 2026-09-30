@@ -551,7 +551,7 @@ fn stream_multipart(
     shutdown: &AtomicBool,
 ) -> std::io::Result<()> {
     let header = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary={MULTIPART_BOUNDARY}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"
+        "HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary={MULTIPART_BOUNDARY}\r\nCache-Control: no-store\r\nX-Accel-Buffering: no\r\nConnection: close\r\n\r\n"
     );
     stream.write_all(header.as_bytes())?;
 
